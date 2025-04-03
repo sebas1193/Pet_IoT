@@ -11,7 +11,7 @@ class ServoControl {
     Servo servo1;
     int neutralAngle = 90;  // Ángulo neutro (punto de referencia)
     int currentAngle = 90;  // Comenzamos en el ángulo neutro
-
+    bool servoFlow = false; // Estado del servo (abierto o cerrado)
   public:
     // Constructor: inicializa el servo en el pin y lo posiciona en el ángulo neutro
     ServoControl(int pin) {
@@ -64,7 +64,13 @@ class ServoControl {
     void stop_Servo() {
       servo1.detach();  // Detiene la señal PWM al servo
     }
-
+    void dispense_servo(int int_seconds, int open_angle, int close_angle) {
+      open_Servo(open_angle); // Abre el servo
+      delay(int_seconds * 1000); // Espera el tiempo especificado
+      close_Servo(close_angle); // Cierra el servo
+      delay(200);
+      servoFlow = true; // Actualiza el estado del servo
+    }
     // (Opcional) Método para reactivar el servo cuando necesites moverlo nuevamente
     void resume_Servo() {
       servo1.attach(servoPin);
