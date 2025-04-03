@@ -7,9 +7,7 @@
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
 
-WiFiConnection wifi(WIFI_SSID, WIFI_PASSWORD);
-ServoControl miServo(23);
-// Variable definition
+// Variables definition
 // Ultrasonic
 #define TRIG_PIN 5
 #define ECHO_PIN 18
@@ -17,9 +15,11 @@ ServoControl miServo(23);
 #define SERVO_PIN 23
 // Infrared
 #define IR_PIN 19
-
+time_t lastServoActivation = 0;  // Última activación del servo en epoch
 bool servoActive = false; // Auxiliary variable to track servo state
 
+WiFiConnection wifi(WIFI_SSID, WIFI_PASSWORD);
+ServoControl miServo(SERVO_PIN);
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -29,6 +29,7 @@ const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = -5 * 3600; // GMT-5 para Colombia
 const int daylightOffset_sec = 0;    // Sin horario de verano
 
+// MQTT server configuration
 void reconnectMQTT() {
   // Intenta conectarte al servidor MQTT
   while (!client.connected()) {
@@ -117,29 +118,38 @@ void loop() {
       Serial.println("Error obteniendo la hora");
       return;
     }
+    time_t currentTime = mktime(&timeinfo); // Hora actual en epoch
     char timeString[20];
     strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M", &timeinfo);
-    
+
     // Lee el estado del sensor infrarrojo
     if (digitalRead(IR_PIN) == LOW) {
       Serial.println("Object detected!");
       Serial.println(timeString);
-      // Reactiva el servo antes de moverlo nuevamente
-      miServo.resume_Servo();
-      
-      // Usa dispense_servo para abrir y cerrar el servo
-      miServo.dispense_servo(1, 15, 15); // 1 segundo, abre 15°, cierra 15°
-      servoActive = true;               // Actualiza el estado del servo
-      miServo.stop_Servo();
-      sendMessage();             // Detiene la señal PWM
-      servoActive = false;              // Reinicia el estado del servo
-      Serial.println("Alimento dispensado.");
+
+      // Verifica si han pasado más de 2 horas desde la última activación del servo
+      if (difftime(currentTime, lastServoActivation) > 2 * 3600) {
+        // Reactiva el servo antes de moverlo nuevamente
+        miServo.resume_Servo();
+        miServo.dispense_servo(1, 15, 15); // 1 segundo, abre 15°, cierra 15°
+        servoActive = true;               // Actualiza el estado del servo
+        miServo.stop_Servo();             // Detiene la señal PWM
+        lastServoActivation = currentTime; // Actualiza la última activación
+        Serial.println("Alimento dispensado.");
+        sendMessage(); 
+      } else {
+        Serial.println("El servo no se activa porque fue usado hace menos de 2 horas.");
+        sendMessage(); 
+      }
+
+      sendMessage(); // Envía el mensaje JSON
+      servoActive = false; // Reinicia el estado del servo
       delay(1000);
     } else {
       Serial.println("No object detected.");
       Serial.println(timeString);
     }
-    
+
     // Envía un pulso de 10 microsegundos al pin TRIG
     digitalWrite(TRIG_PIN, LOW);
     delayMicroseconds(2);
@@ -162,6 +172,6 @@ void loop() {
     delay(500);
   }
 
-  sendMessage(); // Envía los datos al servidor MQTT
-  delay(5000);   // Ajusta el intervalo de envío según sea necesario
+  sendMessage(); // Envía los datos al servidor MQTT cada 4 segundos
+  delay(4000);   // Ajusta el intervalo de envío según sea necesario
 }
