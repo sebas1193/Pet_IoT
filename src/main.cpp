@@ -173,5 +173,5 @@ void loop() {
   }
 
   sendMessage(); // Envía los datos al servidor MQTT cada 4 segundos
-  delay(4000);   // Ajusta el intervalo de envío según sea necesario
+  delay(2000);   // Ajusta el intervalo de envío según sea necesario
 }
